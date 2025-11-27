@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP32 Telepresence Car</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* Base styling*/
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Roboto", "Helvetica Neue", sans-serif;
+      background: linear-gradient(135deg, #000000 0%, #0a0a0a 50%, #1a1a1a 100%);
+      color: #ffffff;
+      min-height: 100vh;
+      padding: 1rem; /* Reduced padding for smaller screens */
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 1.5rem;
+      box-shadow: 0 10px 50px rgba(0, 0, 0, 0.6);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .panel:hover {
+      transform: scale(1.005);
+      box-shadow: 0 15px 60px rgba(245, 2, 2, 0.7);
+    }
+
+    input {
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0.75rem;
+      padding: 0.875rem;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s;
+      font-weight: 500;
+      font-size: 1rem; /* Ensure readable font size */
+    }
+
+    input:focus {
+      border-color: #0055FF;
+      background: rgba(0, 85, 255, 0.05);
+    }
+
+    button {
+      font-family: inherit;
+      font-weight: 700;
+    }
+
+    img {
+      transition: opacity 0.4s ease;
+    }
+
+    .placeholder-border {
+      border: 1.5px dashed rgba(255, 255, 255, 0.1);
+    }
+
+    .control-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      border-radius: 1rem;
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: white;
+      transition: all 0.2s ease-in-out;
+      font-size: 1.5rem;
+      font-weight: 700;
+      min-height: 3rem; /* Ensure minimum touch target height */
+      padding: 0.5rem; /* Add padding for better touch */
+    }
+
+    .control-btn:hover {
+      background-color: rgba(0, 85, 255, 0.1);
+      border-color: rgba(0, 85, 255, 0.3);
+    }
+
+    .control-btn:active {
+      background-color: #0055FF;
+      border-color: #0055FF;
+      transform: scale(0.95);
+      box-shadow: 0 0 15px rgba(0, 85, 255, 0.8);
+    }
+
+    #btn-stop {
+      background-color: rgba(220, 38, 38, 0.8);
+    }
+
+    #btn-stop:hover {
+      background-color: rgba(220, 38, 38, 1);
+    }
+
+    .hidden-transition {
+      opacity: 0;
+      transform: scale(0.95);
+      pointer-events: none;
+      height: 0;
+      overflow: hidden;
+    }
+
+    /* Disconnect button (top right floating) */
+    #global-disconnect {
+      position: fixed;
+      top: 1rem; /* Adjusted for smaller screens */
+      right: 1rem;
+      display: none;
+      z-index: 50;
+      background-color: #dc2626;
+      color: white;
+      padding: 0.75rem 1.5rem; /* Slightly smaller padding */
+      border-radius: 1rem;
+      font-weight: 700;
+      font-size: 0.9rem; /* Smaller font for mobile */
+      transition: all 0.2s ease-in-out;
+      min-width: 120px; /* Ensure button is wide enough */
+    }
+
+    #global-disconnect:hover {
+      background-color: #ef4444;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+    }
+
+    h1, h2, h3, h4 {
+      font-weight: 800;
+    }
+
+    .text-lg, .text-2xl, .text-4xl {
+      font-weight: 700;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 640px) {
+      body {
+        padding-top: 4rem; /* Push content down to avoid overlap with fixed button */
+      }
+      .control-btn {
+        font-size: 1.25rem; /* Slightly smaller icons on very small screens */
+      }
+      #global-disconnect {
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Global Disconnect Button -->
+  <button id="global-disconnect">Disconnect</button>
+
+  <div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <header class="mb-8 text-center">
+      <h1 class="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-2 leading-tight">Dual-Camera Telepresence Car: ESP32 Powered</h1>
+      <p class="text-gray-400 text-base sm:text-lg font-semibold">Dual Camera | Remote Car Control</p>
+    </header>
+
+    <!-- Connection Panel -->
+    <div id="settings-panel" class="panel p-6 sm:p-8 mb-8">
+      <h2 class="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-center border-b border-gray-700 pb-3">Connection Setup</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div>
+          <label class="block mb-2 text-gray-300 font-semibold text-sm sm:text-base">Car Control URL</label>
+          <input id="car-ip" type="text" placeholder="http://192.168.1.10" value="http://192.168.1.10">
+        </div>
+        <div>
+          <label class="block mb-2 text-gray-300 font-semibold text-sm sm:text-base">Front Camera URL</label>
+          <input id="front-cam-url" type="text" placeholder="http://192.168.1.11/stream" value="http://192.168.1.11:81/stream">
+        </div>
+        <div>
+          <label class="block mb-2 text-gray-300 font-semibold text-sm sm:text-base">Back Camera URL</label>
+          <input id="back-cam-url" type="text" placeholder="http://192.168.1.12/stream" value="http://192.168.1.12:81/stream">
+        </div>
+      </div>
+
+      <div class="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <button id="connect-btn" class="w-full sm:w-auto px-6 sm:px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-bold text-sm sm:text-base">
+          Connect
+        </button>
+        <div id="status-message" class="text-gray-400 text-center sm:text-left font-semibold text-sm sm:text-base">
+          <span>Enter URLs and press Connect.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Section -->
+    <main id="main-content" class="hidden-transition transition-all duration-300 ease-in-out">
+      <!-- Camera Section -->
+      <div class="panel p-6 sm:p-8 mb-8">
+        <h3 class="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-center">Live Cameras</h3>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+          <div class="flex flex-col items-center">
+            <h4 class="text-base sm:text-lg mb-3 text-gray-300 font-semibold">Front Camera</h4>
+            <div class="relative w-full aspect-video bg-black/50 rounded-2xl overflow-hidden">
+              <img id="front-cam-stream" class="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-500" src="" alt="Front Camera Stream">
+              <div id="front-cam-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 placeholder-border rounded-2xl font-semibold text-sm sm:text-base">
+                <span>Front Stream Offline</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-col items-center">
+            <h4 class="text-base sm:text-lg mb-3 text-gray-300 font-semibold">Back Camera</h4>
+            <div class="relative w-full aspect-video bg-black/50 rounded-2xl overflow-hidden">
+              <img id="back-cam-stream" class="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-500" src="" alt="Back Camera Stream">
+              <div id="back-cam-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 placeholder-border rounded-2xl font-semibold text-sm sm:text-base">
+                <span>Back Stream Offline</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Control Section -->
+      <div class="panel p-6 sm:p-8">
+        <h3 class="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-center">Car Controls</h3>
+        <div class="grid grid-cols-3 gap-4 sm:gap-3 aspect-square max-w-md mx-auto p-4">
+          <div></div>
+          <button id="btn-forward" class="control-btn">▲</button>
+          <div></div>
+
+          <button id="btn-left" class="control-btn">◀</button>
+          <button id="btn-stop" class="control-btn">■</button>
+          <button id="btn-right" class="control-btn">▶</button>
+
+          <div></div>
+          <button id="btn-backward" class="control-btn">▼</button>
+          <div></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const connectBtn = document.getElementById('connect-btn');
+      const globalDisconnect = document.getElementById('global-disconnect');
+      const settingsPanel = document.getElementById('settings-panel');
+      const mainContent = document.getElementById('main-content');
+      const statusMsg = document.getElementById('status-message').querySelector('span');
+      const frontCam = document.getElementById('front-cam-stream');
+      const backCam = document.getElementById('back-cam-stream');
+      const carIp = document.getElementById('car-ip');
+      const frontCamUrl = document.getElementById('front-cam-url');
+      const backCamUrl = document.getElementById('back-cam-url');
+
+      const updateStatus = (msg, error = false) => {
+        statusMsg.textContent = msg;
+        statusMsg.classList.toggle('text-red-400', error);
+      };
+
+      const setupStream = (img, placeholder, url) => {
+        if (!url) return;
+        img.src = url;
+        img.onerror = () => {
+          placeholder.style.display = 'flex';
+          img.style.opacity = '0';
+        };
+        img.onload = () => {
+          placeholder.style.display = 'none';
+          img.style.opacity = '1';
+        };
+      };
+
+      connectBtn.addEventListener('click', () => {
+        const carBaseUrl = carIp.value.trim();
+        const frontUrl = frontCamUrl.value.trim();
+        const backUrl = backCamUrl.value.trim();
+
+        if (!carBaseUrl || !frontUrl || !backUrl) {
+          updateStatus('Please fill in all fields.', true);
+          return;
+        }
+
+        setupStream(frontCam, document.getElementById('front-cam-placeholder'), frontUrl);
+        setupStream(backCam, document.getElementById('back-cam-placeholder'), backUrl);
+
+        settingsPanel.classList.add('hidden-transition');
+        mainContent.classList.remove('hidden-transition');
+        globalDisconnect.style.display = 'block';
+        updateStatus('Connected Successfully');
+      });
+
+      globalDisconnect.addEventListener('click', () => {
+        // Reset everything
+        frontCam.src = '';
+        backCam.src = '';
+        document.getElementById('front-cam-placeholder').style.display = 'flex';
+        document.getElementById('back-cam-placeholder').style.display = 'flex';
+
+        mainContent.classList.add('hidden-transition');
+        settingsPanel.classList.remove('hidden-transition');
+        globalDisconnect.style.display = 'none';
+        updateStatus('Disconnected');
+      });
+    });
+  </script>
+</body>
+</html>
